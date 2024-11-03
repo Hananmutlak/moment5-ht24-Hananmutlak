@@ -1,222 +1,177 @@
-// Denna fil ska innehålla din lösning till uppgiften (moment 5).
-
-/* Här under börjar du skriva din JavaScript-kod */
 "use strict";
 
-/*  Denna fil ska innehålla din lösning till uppgiften (moment 5). */
+// Dölja valfria element som inte behövs
+document.getElementById("player").style.display = "none"; // Radera denna rad för att visa musikspelare
+document.getElementById("shownumrows").style.display = "none"; // Radera denna rad för att visa antal träffar
 
-// Constants for API endpoints
+// Constants till API 
 const API_BASE = 'http://api.sr.se/api/v2';
-const CHANNELS_API = `${API_BASE}/channels`;
-const SCHEDULE_API = `${API_BASE}/scheduledepisodes`;
+const CHANNELSAPI = `${API_BASE}/channels`;
+const SCHEDULEAPI = `${API_BASE}/scheduledepisodes`;
 
-// Get references to HTML elements
-const mainNavList = document.getElementById('mainnavlist'); // unordered list for channels
-const info = document.getElementById('info'); // main content area for schedule
-const numrowsEl = document.getElementById('numrows'); // select for number of channels
-const playChannelSelect = document.getElementById('playchannel'); // select for playing channels
-const playButton = document.getElementById('playbutton'); // button to play the selected channel
-const audioContainer = document.getElementById('radioplayer'); // container for audio player
+// HTML elements
+const mymainNavList = document.getElementById('mainnavlist');
+const mynumrowsEl = document.getElementById('numrows'); // Referens till vårt nya input-element
+const myinfo = document.getElementById('info');
 
-let currentChannelId = null; // Track the current channel ID
-
-// Example IDs for P4 channels
-const p4Channels = [
-    { id: 223, name: "P4 Dalarna" },
-    { id: 205, name: "P4 Gotland" },
-    { id: 210, name: "P4 Gävleborg" },
-    { id: 212, name: "P4 Göteborg" },
-    { id: 220, name: "P4 Halland" },
-    { id: 200, name: "P4 Jämtland" }
-];
+// Skapa hjärta element
+const heart = document.createElement('div');
+heart.textContent = '❤️'; // Heart symbol
+heart.style.position = 'fixed'; // Fix position on the screen
+heart.style.top = '10px'; // Position from the top
+heart.style.right = '10px'; // Position from the right
+heart.style.fontSize = '24px'; // Adjust size
+heart.style.zIndex = '1000'; // Ensure it's on top
+document.body.appendChild(heart); // Add heart to the body
 
 // Event listeners
-numrowsEl.addEventListener('change', loadChannels);
-playButton.addEventListener('click', playSelectedChannel);
+mynumrowsEl.addEventListener('input', loadChannels); 
 
-// Load channels from the API
+// Load channel från API
 async function loadChannels() {
+    console.log("Laddar kanaler med max antal:", mynumrowsEl.value);
     try {
-        const maxChannels = numrowsEl.value || 10; // Get selected number of channels
-        const response = await fetch(`${CHANNELS_API}?page=1&size=${maxChannels}&format=json`);
+        const maxChannel = mynumrowsEl.value || 10; // Hämta värdet från input element
+        const response = await fetch(`${CHANNELSAPI}?page=1&size=${maxChannel}&format=json`);
         const data = await response.json();
+        console.log("Kanaler hämtade:", data.channels);
         displayChannels(data.channels);
     } catch (error) {
-        console.error('Error fetching channels:', error);
+        console.error('Fel vid laddning av kanaler:', error);
+        myinfo.innerHTML = "Det gick inte att ladda kanaler. Vänligen försök igen.";
     }
 }
 
-// Display channels in the navigation list
+// Visa kanaler i navigeringslistan
 function displayChannels(channels) {
-    mainNavList.innerHTML = ''; // Clear existing channels
-    playChannelSelect.innerHTML = ''; // Clear existing options in the dropdown
+    mymainNavList.innerHTML = ''; 
+    console.log("Visar", channels.length, "kanaler.");
 
     channels.forEach(channel => {
         const listItem = document.createElement('li');
         listItem.textContent = channel.name;
-        listItem.setAttribute('title', channel.tagline);
+        listItem.setAttribute('title', channel.details);
         listItem.setAttribute('data-channel-id', channel.id);
 
-        // Event listener for clicking on a channel
+        // Händelselyssnare för att klicka på en kanal
         listItem.addEventListener('click', async () => {
-            if (currentChannelId !== channel.id) { // Check if the channel is already selected
-                currentChannelId = channel.id; // Update the current channel ID
-                info.innerHTML = ''; // Clear previous channel's schedule from the info section
-
-                await loadFullSchedule(channel.id); // Load the schedule for the selected channel
-
-                playChannelSelect.value = channel.id; // Update dropdown to selected channel
-            }
+            myinfo.innerHTML = ''; // nu rensa tidigare kanals schema från info section
+            console.log("Vald kanal ID:", channel.id);
+            await loadFullSchedule(channel.id); // Ladda schemat för den valda kanalen
         });
 
-        mainNavList.appendChild(listItem);
-
-        // Add channel to play selection dropdown
-        const option = document.createElement('option');
-        option.value = channel.id;
-        option.textContent = channel.name;
-        playChannelSelect.appendChild(option);
+        mymainNavList.appendChild(listItem);
     });
 }
 
-// Display channel information
-function displayChannelInfo() {
-    const infoArticle = document.createElement('article');
-    infoArticle.innerHTML = `
+// Visa kanalinformation
+function displayChannelInformation() {
+    const informArticle = document.createElement('article');
+    informArticle.innerHTML = `
         <h3>Välkommen till tablåer för Sveriges Radio</h3>
         <h4>Detaljer om varje kanal</h4>
         <p>Denna webbapplikation använder Sveriges Radios Öppna API för tablåer. 
            Välj en kanal till vänster för att visa hela dagsprogrammet för den kanalen.</p>
     `;
-    info.appendChild(infoArticle);
+    myinfo.appendChild(informArticle);
 }
 
-// Parse date format from Sveriges Radio API
-function parseDate(srDateString) {
-    const timestamp = srDateString.match(/\d+/)[0];
+// Analysera datumformat från Sveriges Radio API
+function parseDate(DateString) {
+    const timestamp = DateString.match(/\d+/)[0];
     return new Date(parseInt(timestamp, 10));
 }
 
-// Load the full schedule for the selected channel for the current day
+// Ladda hela schemat för den valda kanalen för den aktuella dagen
 async function loadFullSchedule(channelId) {
-    const today = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0]; // Få aktuellt datum
     let page = 1;
     let allPrograms = [];
 
-    // Loop to handle pagination and gather all pages of schedule data
+    // Loop för att hantera alla sidor med schemadata
     while (true) {
         try {
-            const response = await fetch(`${SCHEDULE_API}?channelid=${channelId}&date=${today}&page=${page}&format=json`);
+            const response = await fetch(`${SCHEDULEAPI}?channelid=${channelId}&date=${today}&page=${page}&format=json`);
             const data = await response.json();
+            console.log(`Hämtad schedule för kanal ID ${channelId}, sida ${page}:`, data.schedule);
             
-            // Check if the API response has programs
             if (data.schedule && data.schedule.length > 0) {
                 allPrograms = allPrograms.concat(data.schedule);
             } else {
-                break; // Exit loop if there's no more schedule data
+                break; // Avsluta loop om inga fler program
             }
 
             if (!data.pagination || !data.pagination.nextpage) {
-                break; // Exit loop if there's no next page
+                break; // Avsluta loopen om det inte finns någon nästa sida
             }
-            page++; // Move to the next page
+            page++; // Flytta till nästa sida
         } catch (error) {
-            console.error('Error fetching schedule:', error);
+            console.error('Fel vid hämtning av schema:', error);
+            myinfo.innerHTML = "Det gick inte att hämta schemat. Vänligen försök igen.";
             break;
         }
     }
 
-    // Display only the upcoming programs for the selected channel
-    displayUpcomingPrograms(allPrograms);
+    console.log("Totalt hämtade program:", allPrograms.length);
+    displaySchedule(allPrograms); // Visa alla program för den valda kanalen
 }
 
-// Filter and display only upcoming programs
-function displayUpcomingPrograms(schedule) {
-    info.innerHTML = ''; // Clear existing schedule for a fresh start
+// Visa aktuellt program 
+function displaySchedule(schedule) {
+    myinfo.innerHTML = ''; // Rensa befintligt schema för en nystart
 
-    const currentTime = new Date(); // Get current time
+    const aktuelltTid = new Date(); // hämta date
 
-    // Filter and display only upcoming programs
+    // Skapa en uppsättning för att spåra unika program
+    let seenPrograms = new Set();
+
     schedule.forEach(program => {
         const startTime = parseDate(program.starttimeutc);
-        if (startTime > currentTime) { // Check if the program starts in the future
-            const article = document.createElement('article');
 
-            const title = document.createElement('h3');
-            title.textContent = program.title;
-
-            const subtitle = document.createElement('h4');
-            subtitle.textContent = program.subtitle || '';
-
-            // Format and display the start and end time
-            const timing = document.createElement('h5');
-            const endTime = parseDate(program.endtimeutc).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
-            timing.textContent = `${startTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })} - ${endTime}`;
-
-            // Description paragraph
-            const description = document.createElement('p');
-            description.textContent = program.description || 'Ingen beskrivning tillgänglig.';
-
-            // Append all elements to the article
-            article.appendChild(title);
-            article.appendChild(subtitle);
-            article.appendChild(timing);
-            article.appendChild(description);
-
-            // Append the article to the info section
-            info.appendChild(article);
+        // Hoppa över programmet om det redan har avslutats
+        if (startTime <= aktuelltTid) {
+            return;
         }
+
+        const showkey = `${program.title}-${program.starttimeutc}`;
+
+        if (seenPrograms.has(showkey)) {
+            return;
+        }
+        
+        seenPrograms.add(showkey); // Spåra unika program
+
+        const article = document.createElement('article');
+        const title = document.createElement('h3');
+        title.textContent = program.title;
+
+        const showtitle = document.createElement('h4');
+        showtitle.textContent = program.showtitle || '';
+
+        const klock = document.createElement('h5');
+        const formattedStartTime = startTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+        const endTime = parseDate(program.endtimeutc).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+        klock.textContent = `${formattedStartTime} - ${endTime}`; // Ändrat från timing till klock
+
+        const date = startTime.toLocaleDateString('sv-SE');
+        const dateEl = document.createElement('p');
+        dateEl.textContent = `Datum: ${date}`;
+
+        const description = document.createElement('p');
+        description.textContent = program.description || 'Ingen beskrivning tillgänglig.';
+
+        article.appendChild(title);
+        article.appendChild(showtitle);
+        article.appendChild(klock);
+        article.appendChild(dateEl);
+        article.appendChild(description);
+
+        myinfo.appendChild(article);
     });
-}
 
-// Function to display the audio player for the selected channel
-async function displayAudioPlayer(channelId) {
-    const response = await fetch(`${CHANNELS_API}/${channelId}?format=json`);
-    const channelData = await response.json();
-
-    const audioUrl = channelData.channel.liveaudio.url;
-
-    // Clear existing audio elements
-    audioContainer.innerHTML = '';
-
-    if (audioUrl) {
-        const audioElement = document.createElement('audio');
-        audioElement.controls = true; // Show audio controls
-        audioElement.autoplay = true; // Autoplay audio
-        const sourceElement = document.createElement('source');
-        sourceElement.src = audioUrl;
-        sourceElement.type = 'audio/mpeg';
-
-        audioElement.appendChild(sourceElement);
-        audioContainer.appendChild(audioElement);
-    } else {
-        alert("Ingen ljudström tillgänglig för den här kanalen.");
-    }
-}
-
-// Play the selected channel
-async function playSelectedChannel() {
-    const selectedChannelId = playChannelSelect.value;
-    if (selectedChannelId) {
-        displayAudioPlayer(selectedChannelId); // Display the audio player when a channel is selected
-    } else {
-        alert("Välj en kanal att spela.");
-    }
-}
-
-// Function to display the heart symbol on the screen
-function displayHeartSymbol() {
-    const heartSymbol = document.createElement('div');
-    heartSymbol.innerHTML = '❤️'; // Heart symbol
-    heartSymbol.style.fontSize = '50px'; // Size of the heart symbol
-    heartSymbol.style.position = 'fixed'; // Position fixed to screen
-    heartSymbol.style.bottom = '10px'; // Position from the bottom
-    heartSymbol.style.right = '10px'; // Position from the right
-    heartSymbol.style.zIndex = '1000'; // Ensure it is on top
-    document.body.appendChild(heartSymbol);
+    console.log("Visade program:", myinfo.children.length);
 }
 
 // Initial load
-displayChannelInfo(); // Display channel information on load
+displayChannelInformation(); // Display channel information when the page loads
 loadChannels(); // Load channels initially
-displayHeartSymbol(); // Display heart symbol on screen
