@@ -5,9 +5,10 @@ document.getElementById("player").style.display = "none"; // Radera denna rad f�
 document.getElementById("shownumrows").style.display = "none"; // Radera denna rad för att visa antal träffar
 
 // Constants till API 
-const API_BASE = 'http://api.sr.se/api/v2';
+const API_BASE = 'https://api.sr.se/api/v2'; // Använd HTTPS för att undvika mixed content
 const CHANNELSAPI = `${API_BASE}/channels`;
 const SCHEDULEAPI = `${API_BASE}/scheduledepisodes`;
+const DEFAULT_CHANNEL_COUNT = 10; // Standard antal kanaler
 
 // HTML elements
 const mymainNavList = document.getElementById('mainnavlist');
@@ -27,11 +28,18 @@ document.body.appendChild(heart); // Add heart to the body
 // Event listeners
 mynumrowsEl.addEventListener('input', loadChannels); 
 
-// Load channel från API
+// Ladda kanaler från API
 async function loadChannels() {
     console.log("Laddar kanaler med max antal:", mynumrowsEl.value);
+    const maxChannel = parseInt(mynumrowsEl.value, 10) || DEFAULT_CHANNEL_COUNT; // Hämta värdet från input element
+
+    // Validera input
+    if (isNaN(maxChannel) || maxChannel <= 0 || maxChannel > 100) {
+        myinfo.innerHTML = "Vänligen ange ett giltigt antal kanaler (1-100).";
+        return; // Avbryt om ogiltigt
+    }
+
     try {
-        const maxChannel = mynumrowsEl.value || 10; // Hämta värdet från input element
         const response = await fetch(`${CHANNELSAPI}?page=1&size=${maxChannel}&format=json`);
         const data = await response.json();
         console.log("Kanaler hämtade:", data.channels);
@@ -93,7 +101,7 @@ async function loadFullSchedule(channelId) {
         try {
             const response = await fetch(`${SCHEDULEAPI}?channelid=${channelId}&date=${today}&page=${page}&format=json`);
             const data = await response.json();
-            console.log(`Hämtad schedule för kanal ID ${channelId}, sida ${page}:`, data.schedule);
+            console.log(`Hämtad schema för kanal ID ${channelId}, sida ${page}:`, data.schedule);
             
             if (data.schedule && data.schedule.length > 0) {
                 allPrograms = allPrograms.concat(data.schedule);
@@ -168,6 +176,11 @@ function displaySchedule(schedule) {
 
         myinfo.appendChild(article);
     });
+
+    // Informera om inga program är tillgängliga
+    if (myinfo.children.length === 0) {
+        myinfo.innerHTML = "<p>Inga program tillgängliga för den valda kanalen.</p>";
+    }
 
     console.log("Visade program:", myinfo.children.length);
 }
